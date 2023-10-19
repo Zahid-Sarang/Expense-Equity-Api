@@ -2,7 +2,9 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import app from "../../src/app";
 import { AppDataSource } from "../../src/config/data-source";
+import { RefreshToken } from "../../src/entity/RefreshToken";
 import { User } from "../../src/entity/User";
+import { isJwt } from "../utils";
 
 describe("POST /auth/register", () => {
     let connection: DataSource;
@@ -110,9 +112,79 @@ describe("POST /auth/register", () => {
             expect(users[0].password).toMatch(/^\$2b\$\d+\$/);
         });
 
-        it.todo("should return if email is already exists");
-        it.todo("should return the access token and refresh token inside a cookie");
-        it.todo("should store the refresh token in the database");
+        it("should return 400 if email is already exists", async () => {
+            // Arrange
+            const userData = {
+                firstName: "Zahid",
+                lastName: "Sarang",
+                email: "zahidSarang@gmail.com",
+                password: "password",
+            };
+            // Act
+            const userRepository = connection.getRepository(User);
+            await userRepository.save(userData);
+            const response = await request(app).post("/auth/register").send(userData);
+
+            // Assert
+            const users = await userRepository.find();
+            expect(response.statusCode).toBe(400);
+            expect(users).toHaveLength(1);
+        });
+
+        it("should return the access token and refresh token inside a cookie", async () => {
+            // Arrange
+            const userData = {
+                firstName: "zahid",
+                lastName: "sarang",
+                email: "zahid@gmail.com",
+                password: "password",
+            };
+
+            // Act
+            const response = await request(app).post("/auth/register").send(userData);
+            interface Headers {
+                ["set-cookie"]: string[];
+            }
+
+            //Assert
+            let accessToken = null;
+            let refreshToken = null;
+            const cookie = (response.header as Headers)["set-cookie"] || [];
+            cookie.forEach((cookie) => {
+                if (cookie.startsWith("accessToken=")) {
+                    accessToken = cookie.split(";")[0].split("=")[1];
+                }
+                if (cookie.startsWith("refreshToken=")) {
+                    refreshToken = cookie.split(";")[0].split("=")[1];
+                }
+            });
+            expect(accessToken).not.toBeNull();
+            expect(refreshToken).not.toBeNull();
+            expect(isJwt(accessToken)).toBeTruthy();
+            expect(isJwt(refreshToken)).toBeTruthy();
+        });
+        it("should store the refresh token in the database", async () => {
+            // Arrange
+            const userData = {
+                firstName: "zahid",
+                lastName: "sarang",
+                email: "zahid@gmail.com",
+                password: "password",
+            };
+
+            // Act
+            const response = await request(app).post("/auth/register").send(userData);
+
+            // Assert
+            const refreshTokenRepo = connection.getRepository(RefreshToken);
+            const token = await refreshTokenRepo
+                .createQueryBuilder("refreshToken")
+                .where("refreshToken.userId = :userId", {
+                    userId: (response.body as Record<string, string>).id,
+                })
+                .getMany();
+            expect(token).toHaveLength(1);
+        });
     });
 
     describe("Fileds are missing", () => {
