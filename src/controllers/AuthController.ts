@@ -69,4 +69,5 @@ export class AuthController {
             next(error);
         }
     }
+    login() {}
 }
