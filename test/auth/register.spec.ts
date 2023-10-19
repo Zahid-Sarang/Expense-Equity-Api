@@ -43,8 +43,8 @@ describe("POST /auth/register", () => {
                 password: "password",
             };
             // Act
-            const repsonse = await request(app).post("/auth/register").send(userData);
-            
+            await request(app).post("/auth/register").send(userData);
+
             //Assert
         });
     });
