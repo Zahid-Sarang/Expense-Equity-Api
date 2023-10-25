@@ -69,6 +69,10 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 certs
+<<<<<<< HEAD
+=======
+public
+>>>>>>> 0a69803 (create a self endpoint and host the public key)
 # Yarn Integrity file
 .yarn-integrity
 
