@@ -2,7 +2,7 @@ import { NextFunction, Response } from "express";
 import { validationResult } from "express-validator";
 import { Logger } from "winston";
 import { UserService } from "../services/UserService";
-import { RegisterUserRequest } from "../types";
+import { AuthRequest, RegisterUserRequest } from "../types";
 import { TokenService } from "../services/TokenService";
 import { JwtPayload } from "jsonwebtoken";
 import { CredentialService } from "../services/CredentialService";
@@ -144,5 +144,11 @@ export class AuthController {
             return;
         }
     }
+
+
+    async self(req: AuthRequest, res: Response) {
+        const user = await this.userService.findById(Number(req.auth.sub));
+        res.status(200).json({ ...user, password: undefined });
+
 
 }
