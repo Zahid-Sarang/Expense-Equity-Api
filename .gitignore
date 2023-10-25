@@ -6,7 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-
+certs
+public
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
@@ -68,11 +69,6 @@ web_modules/
 
 # Output of 'npm pack'
 *.tgz
-certs
-<<<<<<< HEAD
-=======
-public
->>>>>>> 0a69803 (create a self endpoint and host the public key)
 # Yarn Integrity file
 .yarn-integrity
 
