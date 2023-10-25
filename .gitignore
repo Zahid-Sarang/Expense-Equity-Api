@@ -69,16 +69,18 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 certs/
-
 public/
 # Yarn Integrity file
 .yarn-integrity
 
 # dotenv environment variable files
-.env
-.env.dev
 .env.test
+.env.dev
 .env.prod
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
 
 
 # parcel-bundler cache (https://parceljs.org/)
