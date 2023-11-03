@@ -16,11 +16,27 @@ export class AuthController {
         private credentialsService: CredentialService,
     ) {}
 
+    private setCookies(res: Response, accessToken: string, refreshToken: string) {
+        res.cookie("accessToken", accessToken, {
+            domain: "localhost",
+            sameSite: "strict",
+            maxAge: 1000 * 60 * 60, // 60 minutes
+            httpOnly: true,
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+            domain: "localhost",
+            sameSite: "strict",
+            maxAge: 1000 * 60 * 60 * 24 * 365, // 1year
+            httpOnly: true,
+        });
+    }
+
     async register(req: RegisterUserRequest, res: Response, next: NextFunction) {
         // validate request fields
-        const validate = validationResult(req);
-        if (!validate.isEmpty()) {
-            return res.status(400).json({ errors: validate.array() });
+        const validationError = validationResult(req);
+        if (!validationError.isEmpty()) {
+            return res.status(400).json({ errors: validationError.array() });
         }
 
         const { firstName, lastName, email, password } = req.body;
@@ -28,7 +44,7 @@ export class AuthController {
             firstName,
             lastName,
             email,
-            password: "****",
+            password: "******",
         });
         try {
             const user = await this.userService.createUser({
@@ -46,27 +62,13 @@ export class AuthController {
             };
 
             const accessToken = this.tokenService.generateAccessToken(payload);
-
             const newRefreshToken = await this.tokenService.persistRefreshToken(user);
-
             const refreshToken = this.tokenService.generateRefreshToken({
                 ...payload,
                 id: String(newRefreshToken.id),
             });
 
-            res.cookie("accessToken", accessToken, {
-                domain: "localhost",
-                sameSite: "strict",
-                maxAge: 1000 * 60 * 60, // 60 minutes
-                httpOnly: true,
-            });
-
-            res.cookie("refreshToken", refreshToken, {
-                domain: "localhost",
-                sameSite: "strict",
-                maxAge: 1000 * 60 * 60 * 24 * 365, // 1year
-                httpOnly: true,
-            });
+            this.setCookies(res, accessToken, refreshToken);
             res.status(201).json({ id: user.id });
         } catch (error) {
             next(error);
@@ -76,9 +78,9 @@ export class AuthController {
     // Login Method
     async login(req: RegisterUserRequest, res: Response, next: NextFunction) {
         // Validation
-        const result = validationResult(req);
-        if (!result.isEmpty()) {
-            return res.status(400).json({ errors: result.array() });
+        const validationError = validationResult(req);
+        if (!validationError.isEmpty()) {
+            return res.status(400).json({ errors: validationError.array() });
         }
 
         const { email, password } = req.body;
@@ -109,31 +111,17 @@ export class AuthController {
             // generate token
             const payload: JwtPayload = {
                 sub: String(user.id),
+                email: user.email,
             };
 
             const accessToken = this.tokenService.generateAccessToken(payload);
-
             const newRefreshToken = await this.tokenService.persistRefreshToken(user);
-
             const refreshToken = this.tokenService.generateRefreshToken({
                 ...payload,
                 id: String(newRefreshToken.id),
             });
 
-            res.cookie("accessToken", accessToken, {
-                domain: "localhost",
-                sameSite: "strict",
-                maxAge: 1000 * 60 * 60,
-                httpOnly: true,
-            });
-
-            res.cookie("refreshToken", refreshToken, {
-                domain: "localhost",
-                sameSite: "strict",
-                maxAge: 1000 * 60 * 60 * 24 * 365,
-                httpOnly: true,
-            });
-
+            this.setCookies(res, accessToken, refreshToken);
             this.logger.info("User hasb been logged in successfully", {
                 id: user.id,
             });
@@ -148,5 +136,59 @@ export class AuthController {
     async self(req: AuthRequest, res: Response) {
         const user = await this.userService.findById(Number(req.auth.sub));
         res.status(200).json({ ...user, password: undefined });
+    }
+
+    async refresh(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            // token payload
+            const payload: JwtPayload = {
+                sub: req.auth.sub,
+                email: req.auth.email,
+            };
+            const accessToken = this.tokenService.generateAccessToken(payload);
+
+            // Find the user by Id
+            const user = await this.userService.findById(Number(req.auth.sub));
+            if (!user) {
+                const error = createHttpError(400, "User with token could not be found");
+                next(error);
+                return;
+            }
+            const newRefreshToken = await this.tokenService.persistRefreshToken(user);
+
+            // Delete Old Refresh Token
+            await this.tokenService.deleteRefreshToken(Number(req.auth.id));
+            const refreshToken = this.tokenService.generateRefreshToken({
+                ...payload,
+                id: String(newRefreshToken.id),
+            });
+
+            this.setCookies(res, accessToken, refreshToken);
+            this.logger.info("New Refresh Token Generated", {
+                id: req.auth.sub,
+            });
+
+            res.status(200).json({ message: "Token refreshed successfully!" });
+        } catch (err) {
+            next(err);
+            return;
+        }
+    }
+
+    async logout(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            await this.tokenService.deleteRefreshToken(Number(req.auth.id));
+            this.logger.info("Refresh token has been deleted", {
+                id: req.auth.id,
+            });
+            this.logger.info("User has been logged out", { id: req.auth.sub });
+
+            res.clearCookie("accessToken");
+            res.clearCookie("RefreshToken");
+            res.json({ message: "Sucessfully logged out" });
+        } catch (error) {
+            next(error);
+            return;
+        }
     }
 }
